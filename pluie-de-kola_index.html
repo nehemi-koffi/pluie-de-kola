@@ -1,0 +1,493 @@
+<title>Pluie de Kola</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=DM+Mono:wght@500&family=Nunito+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: one centred game column on a leaf-green field. Header and HUD above the canvas, touch pads below. */
+:root {
+  --bg: #E1E9D5;
+  --panel: #F3F7EC;
+  --fg: #1E2819;
+  --muted: #55634C;
+  --accent: #A8321F;
+  --leaf: #3C8C37;
+  --ground: #3A2B20;
+  --stone: #4B453B;
+  --line: #C5D2B6;
+  --font-display: 'Bricolage Grotesque', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121A11; --panel: #1B261A; --fg: #E2EBD7; --muted: #92A585;
+    --accent: #E4694A; --leaf: #6CC36A; --ground: #55402D; --stone: #7A7364; --line: #2C3D2A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121A11; --panel: #1B261A; --fg: #E2EBD7; --muted: #92A585;
+  --accent: #E4694A; --leaf: #6CC36A; --ground: #55402D; --stone: #7A7364; --line: #2C3D2A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.tag { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.hud { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-width: 0; }
+.stat span.l { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.stat b { font-family: var(--font-mono); font-weight: 500; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.lives { display: flex; gap: 6px; align-items: center; height: 1.95rem; }
+.heart { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--accent); }
+.heart.lost { background: transparent; border-color: var(--muted); }
+.stage { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; touch-action: none; user-select: none; -webkit-user-select: none; }
+.overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; text-align: center;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+[hidden], .overlay[hidden] { display: none !important; }
+.overlay h2 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.overlay p { margin: 0; max-width: 28ch; color: var(--muted); line-height: 1.45; }
+.btn {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; cursor: pointer;
+  background: var(--accent); color: var(--panel); border: 0; border-radius: 10px; padding: 12px 28px; margin-top: 4px;
+}
+:root[data-theme="dark"] .btn { color: #1B0F0B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn { color: #1B0F0B; } }
+.btn:focus-visible, .pad:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+.pads { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pad {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.4rem; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 16px 0;
+}
+.pad:active, .pad.on { background: var(--leaf); color: var(--panel); }
+.help { color: var(--muted); font-size: 0.85rem; line-height: 1.5; margin: 0; }
+kbd { font-family: var(--font-mono); font-size: 0.8rem; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Pluie de Kola</h1>
+    <p class="tag">Garde le voyageur sous le ciel qui tombe.</p>
+  </header>
+
+  <div class="hud" aria-live="off">
+    <div class="stat"><span class="l">Score</span><b id="score">0</b></div>
+    <div class="stat"><span class="l">Vies</span><div class="lives" id="lives"></div></div>
+    <div class="stat"><span class="l">Meilleur</span><b id="best">0</b></div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv" aria-label="Zone de jeu : un voyageur évite des pierres et des noix de kola qui tombent"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="ovTitle">Prêt à marcher ?</h2>
+      <p id="ovText">Évite les pierres et les noix de kola. Attrape les feuilles vertes pour gagner des points.</p>
+      <button class="btn" id="ovBtn" type="button">Jouer</button>
+    </div>
+  </div>
+
+  <div class="pads">
+    <button class="pad" id="padL" type="button" aria-label="Aller à gauche">&larr;</button>
+    <button class="pad" id="padR" type="button" aria-label="Aller à droite">&rarr;</button>
+  </div>
+
+  <p class="help">
+    <kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou <kbd>Q</kbd> <kbd>D</kbd> pour bouger. Sur téléphone, glisse le doigt sur l'écran de jeu.
+    <kbd>Espace</kbd> met en pause.
+  </p>
+</div>
+
+<script>
+(function () {
+  var W = 360, H = 540, GROUND = H - 58;
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  var elScore = document.getElementById('score');
+  var elBest = document.getElementById('best');
+  var elLives = document.getElementById('lives');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var ovBtn = document.getElementById('ovBtn');
+  var padL = document.getElementById('padL');
+  var padR = document.getElementById('padR');
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var KEY = 'pluie-de-kola-best';
+  var best = 0;
+  try { best = parseInt(localStorage.getItem(KEY) || '0', 10) || 0; } catch (e) {}
+  elBest.textContent = best;
+
+  var C = {};
+  function readColors() {
+    var cs = getComputedStyle(document.documentElement);
+    ['bg', 'fg', 'accent', 'leaf', 'ground', 'stone', 'panel'].forEach(function (k) {
+      C[k] = cs.getPropertyValue('--' + k).trim();
+    });
+  }
+  readColors();
+
+  var state = 'ready'; // ready | playing | paused | over
+  var t = 0, elapsed = 0, score = 0, lives = 3, invul = 0, shake = 0, spawnT = 0.6;
+  var player = { x: W / 2, moving: false };
+  var objs = [], parts = [];
+  var keys = { left: false, right: false }, touch = { left: false, right: false };
+  var target = null;
+
+  function renderLives() {
+    var html = '';
+    for (var i = 0; i < 3; i++) html += '<span class="heart' + (i < lives ? '' : ' lost') + '"></span>';
+    elLives.innerHTML = html;
+    elLives.setAttribute('aria-label', lives + ' vies');
+  }
+  renderLives();
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function spawn() {
+    var r = Math.random(), o;
+    var diff = 1 + elapsed / 28;
+    var vy = (rand(150, 230)) * Math.min(diff, 2.6);
+    if (r < 0.08 && elapsed > 5) {
+      o = { type: 'leaf', r: 11, vy: vy * 0.6 };
+    } else if (r < 0.3) {
+      o = { type: 'pod', r: rand(10, 14), vy: vy * 0.85 };
+    } else {
+      o = { type: 'stone', r: rand(12, 21), vy: vy };
+    }
+    o.x = rand(o.r + 4, W - o.r - 4);
+    o.y = -o.r - 6;
+    o.rot = rand(0, 6.28);
+    o.rv = rand(-2.5, 2.5);
+    o.ph = rand(0, 6.28);
+    o.shape = [];
+    for (var i = 0; i < 8; i++) o.shape.push(rand(0.78, 1.05));
+    objs.push(o);
+  }
+
+  function burst(x, y, color, n) {
+    for (var i = 0; i < n; i++) {
+      parts.push({ x: x, y: y, vx: rand(-90, 90), vy: rand(-140, -20), life: rand(0.3, 0.7), max: 0.7, c: color });
+    }
+  }
+
+  function circleRect(cx, cy, r, rx, ry, rw, rh) {
+    var nx = Math.max(rx, Math.min(cx, rx + rw));
+    var ny = Math.max(ry, Math.min(cy, ry + rh));
+    var dx = cx - nx, dy = cy - ny;
+    return dx * dx + dy * dy < r * r;
+  }
+
+  function setOverlay(title, text, btn) {
+    ovTitle.textContent = title; ovText.textContent = text; ovBtn.textContent = btn;
+    overlay.hidden = false;
+  }
+
+  function start() {
+    objs = []; parts = [];
+    elapsed = 0; score = 0; lives = 3; invul = 0; shake = 0; spawnT = 0.5;
+    player.x = W / 2; target = null;
+    elScore.textContent = '0';
+    renderLives();
+    state = 'playing';
+    overlay.hidden = true;
+  }
+
+  function gameOver() {
+    state = 'over';
+    var s = Math.floor(score);
+    var msg = 'Score : ' + s + '.';
+    if (s > best) {
+      best = s; elBest.textContent = best;
+      try { localStorage.setItem(KEY, String(best)); } catch (e) {}
+      msg += ' Nouveau record !';
+    } else {
+      msg += ' Meilleur : ' + best + '.';
+    }
+    setOverlay('Fin de la route', msg, 'Rejouer');
+    ovBtn.focus({ preventScroll: true });
+  }
+
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused';
+      setOverlay('Pause', 'Le sol respire, le jeu attend.', 'Reprendre');
+    } else if (state === 'paused') {
+      state = 'playing';
+      overlay.hidden = true;
+    }
+  }
+
+  function update(dt, live) {
+    t += dt;
+    var diff = 1 + elapsed / 28;
+    spawnT -= dt;
+    if (spawnT <= 0) {
+      if (live) {
+        spawn();
+        spawnT = Math.max(0.26, 0.85 - elapsed * 0.011) * rand(0.7, 1.3);
+      } else if (!reduce) {
+        spawn();
+        spawnT = rand(0.7, 1.4);
+      } else {
+        spawnT = 1;
+      }
+    }
+
+    if (live) {
+      elapsed += dt;
+      score += dt * 10;
+      var dir = (keys.right || touch.right ? 1 : 0) - (keys.left || touch.left ? 1 : 0);
+      var before = player.x;
+      if (target !== null) {
+        var dx = target - player.x, m = 560 * dt;
+        player.x += Math.max(-m, Math.min(m, dx));
+      } else {
+        player.x += dir * 300 * dt;
+      }
+      player.x = Math.max(22, Math.min(W - 22, player.x));
+      player.moving = Math.abs(player.x - before) > 0.2;
+      if (invul > 0) invul -= dt;
+      if (shake > 0) shake = Math.max(0, shake - dt * 30);
+    }
+
+    for (var i = objs.length - 1; i >= 0; i--) {
+      var o = objs[i];
+      o.y += o.vy * dt;
+      o.rot += o.rv * dt;
+      if (o.type !== 'stone') o.x += Math.sin(t * 3 + o.ph) * 28 * dt;
+
+      if (live) {
+        if (circleRect(o.x, o.y, o.r * 0.88, player.x - 13, GROUND - 58, 26, 58)) {
+          if (o.type === 'leaf') {
+            score += 25;
+            burst(o.x, o.y, C.leaf, 10);
+            objs.splice(i, 1);
+            continue;
+          }
+          if (invul <= 0) {
+            lives -= 1; invul = 1.3; shake = reduce ? 0 : 8;
+            burst(o.x, o.y, C.accent, 14);
+            renderLives();
+            objs.splice(i, 1);
+            if (lives <= 0) { gameOver(); return; }
+            continue;
+          }
+        }
+      }
+      if (o.y > GROUND - o.r * 0.3) {
+        burst(o.x, GROUND, C.ground, 4);
+        objs.splice(i, 1);
+      }
+    }
+
+    for (var j = parts.length - 1; j >= 0; j--) {
+      var p = parts[j];
+      p.life -= dt;
+      if (p.life <= 0) { parts.splice(j, 1); continue; }
+      p.vy += 420 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+    }
+
+    if (live) elScore.textContent = Math.floor(score);
+  }
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function groundY(x) { return GROUND + (reduce ? 0 : Math.sin(x * 0.028 + t * 1.6) * 2.2); }
+
+  function drawGround() {
+    ctx.fillStyle = C.ground;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (var x = 0; x <= W; x += 6) ctx.lineTo(x, groundY(x));
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+    // bogolan-style marks: rows of small crosses and zigzags
+    ctx.strokeStyle = C.bg;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    var rowY = GROUND + 18;
+    for (var cx = 10; cx < W; cx += 22) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 3, rowY - 3); ctx.lineTo(cx + 3, rowY + 3);
+      ctx.moveTo(cx + 3, rowY - 3); ctx.lineTo(cx - 3, rowY + 3);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    for (var zx = 0; zx <= W; zx += 11) {
+      var zy = GROUND + 36 + ((zx / 11) % 2 ? 4 : -4);
+      if (zx === 0) ctx.moveTo(zx, zy); else ctx.lineTo(zx, zy);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawObj(o) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.rot);
+    if (o.type === 'stone') {
+      ctx.fillStyle = C.stone;
+      ctx.beginPath();
+      for (var i = 0; i < 8; i++) {
+        var a = (i / 8) * Math.PI * 2, rad = o.r * o.shape[i];
+        var px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath(); ctx.arc(-o.r * 0.3, -o.r * 0.3, o.r * 0.28, 0, 6.28); ctx.fill();
+    } else if (o.type === 'pod') {
+      ctx.fillStyle = C.accent;
+      ctx.beginPath(); ctx.ellipse(0, 0, o.r * 0.72, o.r, 0, 0, 6.28); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, -o.r); ctx.lineTo(0, o.r); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.5, -1.2, 1.2); ctx.stroke();
+    } else {
+      ctx.fillStyle = C.leaf;
+      ctx.beginPath(); ctx.ellipse(0, 0, o.r * 0.55, o.r, 0, 0, 6.28); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(0, -o.r * 0.85); ctx.lineTo(0, o.r * 0.85); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    var x = player.x, y = GROUND;
+    var step = player.moving ? Math.sin(t * 16) * 5 : 0;
+    ctx.save();
+    if (invul > 0 && Math.floor(t * 18) % 2 === 0) ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = C.fg; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y - 18); ctx.lineTo(x - 5 + step, y - 1);
+    ctx.moveTo(x + 5, y - 18); ctx.lineTo(x + 5 - step, y - 1);
+    ctx.stroke();
+    ctx.fillStyle = C.fg;
+    rr(x - 11, y - 44, 22, 28, 7); ctx.fill();
+    ctx.fillStyle = C.leaf;
+    ctx.fillRect(x - 11, y - 34, 22, 5);
+    ctx.fillStyle = C.fg;
+    ctx.beginPath(); ctx.arc(x, y - 52, 9, 0, 6.28); ctx.fill();
+    ctx.fillStyle = C.accent;
+    ctx.beginPath(); ctx.ellipse(x, y - 57, 17, 4, 0, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x - 8, y - 58); ctx.lineTo(x, y - 71); ctx.lineTo(x + 8, y - 58); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.save();
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+    if (shake > 0) ctx.translate(rand(-shake, shake) * 0.5, rand(-shake, shake) * 0.5);
+    // faint horizon band of leaf green
+    ctx.globalAlpha = 0.14; ctx.fillStyle = C.leaf;
+    ctx.fillRect(0, GROUND - 90, W, 90);
+    ctx.globalAlpha = 1;
+    drawGround();
+    for (var i = 0; i < objs.length; i++) drawObj(objs[i]);
+    drawPlayer();
+    for (var j = 0; j < parts.length; j++) {
+      var p = parts[j];
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  var last = 0, frames = 0;
+  function loop(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0);
+    last = ts;
+    if (++frames % 60 === 0) readColors();
+    if (state === 'playing') update(dt, true);
+    else if (state === 'ready' || state === 'over') update(dt, false);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(function (ts) { last = ts; loop(ts); });
+
+  // Input
+  function keyDir(e, down) {
+    var k = e.code;
+    if (k === 'ArrowLeft' || k === 'KeyA' || k === 'KeyQ') { keys.left = down; return true; }
+    if (k === 'ArrowRight' || k === 'KeyD') { keys.right = down; return true; }
+    return false;
+  }
+  window.addEventListener('keydown', function (e) {
+    if (keyDir(e, true)) { target = null; e.preventDefault(); return; }
+    if (e.code === 'Space' || e.code === 'KeyP') {
+      e.preventDefault();
+      if (state === 'playing' || state === 'paused') togglePause();
+      else if (state === 'ready' || state === 'over') start();
+    } else if (e.code === 'Enter' && (state === 'ready' || state === 'over')) {
+      e.preventDefault(); start();
+    }
+  });
+  window.addEventListener('keyup', function (e) { if (keyDir(e, false)) e.preventDefault(); });
+  window.addEventListener('blur', function () { keys.left = keys.right = false; });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && state === 'playing') togglePause(); });
+
+  ovBtn.addEventListener('click', function () {
+    if (state === 'paused') togglePause(); else start();
+  });
+
+  function pointerX(e) {
+    var rect = cv.getBoundingClientRect();
+    return ((e.clientX - rect.left) / rect.width) * W;
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    if (state !== 'playing') return;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    target = pointerX(e);
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (target !== null && state === 'playing') target = pointerX(e);
+  });
+  function endPointer() { target = null; }
+  cv.addEventListener('pointerup', endPointer);
+  cv.addEventListener('pointercancel', endPointer);
+
+  function bindPad(btn, side) {
+    btn.addEventListener('pointerdown', function (e) {
+      e.preventDefault(); touch[side] = true; target = null; btn.classList.add('on');
+      if (state === 'ready' || state === 'over') start();
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+      btn.addEventListener(ev, function () { touch[side] = false; btn.classList.remove('on'); });
+    });
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  bindPad(padL, 'left');
+  bindPad(padR, 'right');
+})();
+</script>
